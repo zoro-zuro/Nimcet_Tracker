@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -142,7 +142,7 @@ export default function DashboardPage() {
               <div className="flex-1">
                 <h3 className="font-semibold text-gray-900 mb-1">Get Started with Sample Questions</h3>
                 <p className="text-sm text-gray-600 mb-3">
-                  Add some sample questions to explore the app's features
+                  Add some sample questions to explore the app&apos;s features
                 </p>
                 <Button
                   size="sm"

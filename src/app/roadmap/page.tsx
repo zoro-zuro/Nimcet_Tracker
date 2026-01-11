@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -80,10 +80,9 @@ export default function RoadmapPage() {
       </div>
       
       <div className="space-y-6">
-        {phases.map((phase, index) => {
+        {phases.map((phase) => {
           const isActive = phase.number === 1;
           const isCompleted = false;
-          const progress = isActive ? Math.min((totalAnswers / phase.targetQuestions) * 100, 100) : 0;
           
           return (
             <Card key={phase.number} className={isActive ? "border-[#1B4965] border-2" : ""}>

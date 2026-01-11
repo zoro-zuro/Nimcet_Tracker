@@ -36,14 +36,16 @@ export const getDashboardSummary = query({
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .collect();
 
-    // Get topic stats to find worst topics
+    // Get all topic stats
     const topicStats = await ctx.db
       .query("topicStats")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .collect();
 
+    // Filter topic stats for this user manually (since no index)
+    const userTopicStats = topicStats.filter(t => t.userId.equals(user._id));
+
     // Calculate worst topics (lowest accuracy where attempted > 0)
-    const worstTopics = topicStats
+    const worstTopics = userTopicStats
       .filter(t => t.attempted > 0)
       .map(t => ({
         topic: t.topic,

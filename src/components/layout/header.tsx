@@ -1,24 +1,15 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { useEffect, useState } from "react";
+import { api } from "@convex/_generated/api";
 
 export function Header() {
   const dashboardSummary = useQuery(api.stats.getDashboardSummary);
-  const [now, setNow] = useState(Date.now());
-  
   const user = dashboardSummary?.user;
   
-  // Update time periodically
-  useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 60000); // Update every minute
-    return () => clearInterval(interval);
-  }, []);
-  
-  // Calculate days left
+  // Calculate days left - this is fine as it only runs on user data change
   const daysLeft = user?.examDate
-    ? Math.max(0, Math.ceil((new Date(user.examDate).getTime() - now) / (1000 * 60 * 60 * 24)))
+    ? Math.max(0, Math.ceil((new Date(user.examDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : 0;
   
   return (
