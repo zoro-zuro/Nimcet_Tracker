@@ -8,7 +8,8 @@ export default defineSchema({
     targetScore: v.number(),
     examDate: v.string(), // ISO date
     createdAt: v.number(), // milliseconds
-  }),
+  })
+    .index("by_name", ["name"]),
 
   // Papers table - stores question papers
   papers: defineTable({
@@ -41,7 +42,8 @@ export default defineSchema({
     tags: v.array(v.string()),
     sourceIndex: v.optional(v.number()),
     createdAt: v.number(),
-  }),
+  })
+    .index("by_userId", ["userId"]),
 
   // Sessions table - stores practice/mock test sessions
   sessions: defineTable({
@@ -69,7 +71,10 @@ export default defineSchema({
     timeTakenSeconds: v.optional(v.number()),
     reviewLater: v.boolean(),
     createdAt: v.number(),
-  }),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_sessionId", ["sessionId"])
+    .index("by_sessionId_questionId", ["sessionId", "questionId"]),
 
   // Mistakes table - tracks user mistakes for spaced repetition
   mistakes: defineTable({
@@ -87,7 +92,8 @@ export default defineSchema({
     lastReviewedAt: v.optional(v.number()),
     aiExplanation: v.optional(v.string()),
     createdAt: v.number(),
-  }),
+  })
+    .index("by_userId", ["userId"]),
 
   // Topic statistics table
   topicStats: defineTable({

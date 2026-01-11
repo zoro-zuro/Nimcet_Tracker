@@ -12,7 +12,14 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Convex generated files
+    "convex/_generated/**",
   ]),
+  {
+    rules: {
+      "react-hooks/purity": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;
