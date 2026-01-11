@@ -1,7 +1,35 @@
-// Convex function - will be properly typed when Convex deployment is configured
-// This is a placeholder for the actual query function
-// The schema and logic are correct, just needs proper Convex setup
+import { query } from "./_generated/server";
 
-export const getOrCreateDefaultUser = {
-  placeholder: "Convex query function - requires deployment setup"
-};
+// Get or create default user for the current session
+export const getOrCreateDefaultUser = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    const userIdentityId = identity.subject;
+    
+    // Check if user already exists
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_name", (q) => q.eq("name", identity.tokenIdentifier || userIdentityId))
+      .first();
+
+    if (existingUser) {
+      return existingUser;
+    }
+
+    // Create new user with defaults
+    const now = Date.now();
+    const newUserId = await ctx.db.insert("users", {
+      name: identity.tokenIdentifier || userIdentityId,
+      targetScore: 750,
+      examDate: new Date(now + 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 days from now
+      createdAt: now,
+    });
+
+    return await ctx.db.get(newUserId);
+  },
+});
