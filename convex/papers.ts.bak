@@ -1,0 +1,174 @@
+import { v } from "convex/values";
+import { mutation, query } from "convex/server";
+
+// Generate upload URL for PDF files
+export const generateUploadUrl = mutation({
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+// Create a new paper
+export const createPaper = mutation({
+  args: {
+    year: v.number(),
+    title: v.string(),
+    description: v.string(),
+    tags: v.array(v.string()),
+    pdfStorageId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get user document
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_name", (q) => q.eq("name", identity.name!))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const paperId = await ctx.db.insert("papers", {
+      year: args.year,
+      title: args.title,
+      description: args.description,
+      tags: args.tags,
+      pdfStorageId: args.pdfStorageId,
+      createdAt: Date.now(),
+      userId: user._id,
+    });
+
+    return paperId;
+  },
+});
+
+// List papers with optional year filter
+export const list = query({
+  args: {
+    year: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    // Get user document
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_name", (q) => q.eq("name", identity.name!))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    let papersQuery = ctx.db
+      .query("papers")
+      .withIndex("by_userId_year", (q) => q.eq("userId", user._id));
+
+    if (args.year) {
+      papersQuery = papersQuery.withIndex("by_year", (q) => q.eq("year", args.year!));
+    }
+
+    return await papersQuery.order("desc").collect();
+  },
+});
+
+// Get a specific paper by ID
+export const get = query({
+  args: {
+    paperId: v.id("papers"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const paper = await ctx.db.get(args.paperId);
+    if (!paper) {
+      throw new Error("Paper not found");
+    }
+
+    return paper;
+  },
+});
+
+// Get questions linked to a specific paper
+export const getQuestionsByPaper = query({
+  args: {
+    paperId: v.id("papers"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const questions = await ctx.db
+      .query("questions")
+      .withIndex("by_paperId_sourceIndex", (q) => q.eq("paperId", args.paperId))
+      .order("asc")
+      .collect();
+
+    return questions;
+  },
+});
+
+// Delete a paper (admin only or owner)
+export const deletePaper = mutation({
+  args: {
+    paperId: v.id("papers"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const paper = await ctx.db.get(args.paperId);
+    if (!paper) {
+      throw new Error("Paper not found");
+    }
+
+    // Check if user owns this paper
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_name", (q) => q.eq("name", identity.name!))
+      .first();
+
+    if (!user || paper.userId !== user._id) {
+      throw new Error("Unauthorized");
+    }
+
+    // Delete associated questions
+    const questions = await ctx.db
+      .query("questions")
+      .withIndex("by_paperId_sourceIndex", (q) => q.eq("paperId", args.paperId))
+      .collect();
+
+    for (const question of questions) {
+      await ctx.db.delete(question._id);
+    }
+
+    // Delete PDF file if it exists
+    if (paper.pdfStorageId) {
+      try {
+        await ctx.storage.delete(paper.pdfStorageId);
+      } catch (error) {
+        console.warn("Failed to delete PDF file:", error);
+      }
+    }
+
+    // Delete the paper
+    await ctx.db.delete(args.paperId);
+
+    return { success: true };
+  },
+});

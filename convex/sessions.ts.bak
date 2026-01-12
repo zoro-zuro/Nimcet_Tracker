@@ -1,0 +1,231 @@
+import { mutation, query } from "./_generated/server";
+import { v } from "convex/values";
+
+export const createPracticeSession = mutation({
+  args: {
+    questionIds: v.array(v.id("questions")),
+    timerEnabled: v.boolean(),
+    timeLimitSeconds: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userIdentityId = identity.subject;
+    
+    // Get user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_name", (q) => q.eq("name", identity.tokenIdentifier || userIdentityId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Create session
+    const sessionId = await ctx.db.insert("sessions", {
+      userId: user._id,
+      type: "practice",
+      mode: "custom",
+      questionIds: args.questionIds,
+      timerEnabled: args.timerEnabled,
+      timeLimitSeconds: args.timeLimitSeconds,
+      startedAt: Date.now(),
+    });
+
+    return await ctx.db.get(sessionId);
+  },
+});
+
+// Create mock test session with different modes
+export const createMockSession = mutation({
+  args: {
+    mode: v.union(
+      v.literal("YEARLY"),
+      v.literal("TOPIC_WISE"),
+      v.literal("CUSTOM")
+    ),
+    config: v.object({
+      year: v.optional(v.number()),
+      topics: v.optional(v.array(v.string())),
+      sectionFilters: v.optional(v.array(v.string())),
+      questionCount: v.optional(v.number()),
+      sectionDistribution: v.optional(v.object({
+        math: v.number(),
+        reasoning: v.number(),
+        computer: v.number(),
+        english: v.number(),
+      })),
+      difficultyDistribution: v.optional(v.object({
+        easy: v.number(),
+        medium: v.number(),
+        hard: v.number(),
+      })),
+      timerEnabled: v.boolean(),
+      timeLimitSeconds: v.optional(v.number()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userIdentityId = identity.subject;
+    
+    // Get user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_name", (q) => q.eq("name", identity.tokenIdentifier || userIdentityId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Get questions based on mode
+    let questions = [];
+    
+    if (args.mode === "YEARLY") {
+      // Get questions from a specific year
+      questions = await ctx.db
+        .query("questions")
+        .withIndex("by_year_section", (q) => 
+          q.eq("year", args.config.year!)
+        )
+        .collect();
+    } else if (args.mode === "TOPIC_WISE") {
+      // Get questions by topic
+      questions = await ctx.db
+        .query("questions")
+        .withIndex("by_userId_topic", (q) => 
+          q.eq("userId", user._id)
+        )
+        .collect();
+      
+      // Filter by topics if specified
+      if (args.config.topics && args.config.topics.length > 0) {
+        questions = questions.filter(q => 
+          args.config.topics!.includes(q.topic)
+        );
+      }
+    } else if (args.mode === "CUSTOM") {
+      // Get all questions and apply custom distribution
+      questions = await ctx.db
+        .query("questions")
+        .withIndex("by_userId_section", (q) => 
+          q.eq("userId", user._id)
+        )
+        .collect();
+    }
+
+    // Limit questions if count specified
+    if (args.config.questionCount && questions.length > args.config.questionCount) {
+      // Shuffle and limit
+      const shuffled = questions.sort(() => 0.5 - Math.random());
+      questions = shuffled.slice(0, args.config.questionCount);
+    }
+
+    // Create session
+    const sessionId = await ctx.db.insert("sessions", {
+      userId: user._id,
+      type: "mock",
+      mode: args.mode.toLowerCase(),
+      questionIds: questions.map(q => q._id),
+      timerEnabled: args.config.timerEnabled,
+      timeLimitSeconds: args.config.timeLimitSeconds,
+      startedAt: Date.now(),
+    });
+
+    return await ctx.db.get(sessionId);
+  },
+});
+
+export const getSession = query({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.sessionId);
+  },
+});
+
+// Get questions for a session
+export const getSessionQuestions = query({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error("Session not found");
+    }
+
+    const questions = [];
+    for (const questionId of session.questionIds) {
+      const question = await ctx.db.get(questionId);
+      if (question) {
+        questions.push(question);
+      }
+    }
+
+    return questions;
+  },
+});
+
+// End a session and calculate results
+export const endSession = mutation({
+  args: {
+    sessionId: v.id("sessions"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      throw new Error("Session not found");
+    }
+
+    // Get all answers for this session
+    const answers = await ctx.db
+      .query("answers")
+      .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
+      .collect();
+
+    let correctCount = 0;
+    for (const answer of answers) {
+      if (answer.isCorrect) {
+        correctCount++;
+      }
+    }
+
+    const scoreTotal = Math.round((correctCount / session.questionIds.length) * 100);
+
+    // Update session
+    await ctx.db.patch(args.sessionId, {
+      endedAt: Date.now(),
+    });
+
+    // If this is a mock test, save results
+    if (session.type === "mock") {
+      await ctx.db.insert("mocks", {
+        userId: session.userId,
+        sessionId: args.sessionId,
+        scoreTotal,
+        sectionScores: {}, // TODO: Calculate section-wise scores
+        timeMinutes: Math.round((Date.now() - session.startedAt) / 60000),
+        createdAt: Date.now(),
+      });
+    }
+
+    return {
+      sessionId: args.sessionId,
+      scoreTotal,
+      totalQuestions: session.questionIds.length,
+      correctAnswers: correctCount,
+      incorrectAnswers: session.questionIds.length - correctCount,
+    };
+  },
+});
