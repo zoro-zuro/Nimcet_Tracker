@@ -2,14 +2,15 @@
   "name": "project",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.28.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "convex:dev": "npx convex dev",
-    "convex:deploy": "npx convex deploy",
-    "convex:codegen": "npx convex codegen"
+    "convex:dev": "pnpm convex dev",
+    "convex:deploy": "pnpm convex deploy",
+    "convex:codegen": "pnpm convex codegen"
   },
   "dependencies": {
     "@convex-dev/react-query": "^0.1.0",
