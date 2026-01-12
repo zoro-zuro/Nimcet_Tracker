@@ -36,3 +36,29 @@ export function CardContent({ children, className = "" }: CardContentProps) {
     </div>
   );
 }
+
+export interface CardTitleProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function CardTitle({ children, className = "" }: CardTitleProps) {
+  return (
+    <h3 className={`text-lg font-semibold leading-none tracking-tight ${className}`}>
+      {children}
+    </h3>
+  );
+}
+
+export interface CardDescriptionProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function CardDescription({ children, className = "" }: CardDescriptionProps) {
+  return (
+    <p className={`text-sm text-gray-600 ${className}`}>
+      {children}
+    </p>
+  );
+}

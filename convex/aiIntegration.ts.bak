@@ -1,0 +1,193 @@
+import { mutation, query } from "./_generated/server";
+import { v } from "convex/values";
+import { createAIService } from "./aiService";
+
+// Generate custom paper using AI
+export const generateCustomPaper = mutation({
+  args: {
+    year: v.optional(v.number()),
+    section: v.optional(v.string()),
+    questionCount: v.number(),
+    difficultyDistribution: v.optional(v.object({
+      easy: v.number(),
+      medium: v.number(),
+      hard: v.number(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const aiService = createAIService();
+    if (!aiService) {
+      throw new Error("AI service not configured");
+    }
+
+    const result = await aiService.generateCustomPaper({
+      year: args.year,
+      section: args.section,
+      questionCount: args.questionCount,
+      difficultyDistribution: args.difficultyDistribution || {
+        easy: 30,
+        medium: 50,
+        hard: 20,
+      },
+    });
+
+    return result;
+  },
+});
+
+// Ask AI for help with a question
+export const askAI = mutation({
+  args: {
+    questionId: v.optional(v.id("questions")),
+    questionText: v.optional(v.string()),
+    promptType: v.union(
+      v.literal("hint"),
+      v.literal("explain"),
+      v.literal("similar")
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const aiService = createAIService();
+    if (!aiService) {
+      throw new Error("AI service not configured");
+    }
+
+    let questionText = args.questionText;
+    
+    // If questionId provided, fetch the question text
+    if (args.questionId) {
+      const question = await ctx.db.get(args.questionId);
+      if (question) {
+        questionText = question.text;
+      }
+    }
+
+    if (!questionText) {
+      throw new Error("Question text not found");
+    }
+
+    const response = await aiService.askAI({
+      questionId: args.questionId,
+      questionText,
+      promptType: args.promptType,
+    });
+
+    return { response };
+  },
+});
+
+// Suggest daily plan using AI
+export const suggestDailyPlan = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userIdentityId = identity.subject;
+    
+    // Get user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_name", (q) => q.eq("name", identity.tokenIdentifier || userIdentityId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const aiService = createAIService();
+    if (!aiService) {
+      throw new Error("AI service not configured");
+    }
+
+    const result = await aiService.suggestDailyPlan(user._id.toString());
+
+    return result;
+  },
+});
+
+// Create draft questions from AI response
+export const createDraftQuestions = mutation({
+  args: {
+    questions: v.array(v.object({
+      text: v.string(),
+      options: v.array(v.string()),
+      correctOption: v.union(v.literal("A"), v.literal("B"), v.literal("C"), v.literal("D")),
+      section: v.union(
+        v.literal("math"),
+        v.literal("reasoning"),
+        v.literal("computer"),
+        v.literal("english")
+      ),
+      topic: v.string(),
+      subTopic: v.optional(v.string()),
+      difficulty: v.union(
+        v.literal("easy"),
+        v.literal("medium"),
+        v.literal("hard")
+      ),
+      tags: v.array(v.string()),
+    })),
+    paperId: v.optional(v.id("papers")),
+    year: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userIdentityId = identity.subject;
+    
+    // Get user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_name", (q) => q.eq("name", identity.tokenIdentifier || userIdentityId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const createdQuestions = [];
+    
+    for (let i = 0; i < args.questions.length; i++) {
+      const q = args.questions[i];
+      const questionId = await ctx.db.insert("questions", {
+        userId: user._id,
+        paperId: args.paperId,
+        section: q.section,
+        topic: q.topic,
+        subTopic: q.subTopic,
+        text: q.text,
+        options: q.options,
+        correctOption: q.correctOption,
+        difficulty: q.difficulty,
+        tags: q.tags,
+        sourceIndex: i + 1,
+        year: args.year,
+        createdAt: Date.now(),
+      });
+
+      createdQuestions.push(questionId);
+    }
+
+    return {
+      success: true,
+      questionIds: createdQuestions,
+      count: createdQuestions.length,
+    };
+  },
+});

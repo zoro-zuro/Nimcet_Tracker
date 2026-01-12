@@ -1,0 +1,422 @@
+import { mutation, query } from "./_generated/server";
+import { v } from "convex/values";
+
+// Award XP and check for level ups
+export const awardXP = mutation({
+  args: {
+    xpAmount: v.number(),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userIdentityId = identity.subject;
+    
+    // Get user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_name", (q) => q.eq("name", identity.tokenIdentifier || userIdentityId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const newXP = (user.xp || 0) + args.xpAmount;
+    const newLevel = Math.floor(newXP / 100) + 1; // Simple leveling: 100 XP per level
+
+    // Update user
+    await ctx.db.patch(user._id, {
+      xp: newXP,
+      level: newLevel,
+    });
+
+    return {
+      xpGained: args.xpAmount,
+      totalXP: newXP,
+      level: newLevel,
+      levelUp: newLevel > user.level,
+    };
+  },
+});
+
+// Update streak
+export const updateStreak = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userIdentityId = identity.subject;
+    
+    // Get user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_name", (q) => q.eq("name", identity.tokenIdentifier || userIdentityId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+    let newStreakCurrent = 1;
+    let newStreakBest = user.streakBest || 0;
+
+    if (user.lastActiveDate === yesterday) {
+      newStreakCurrent = (user.streakCurrent || 0) + 1;
+    } else if (user.lastActiveDate === today) {
+      // Already active today
+      return {
+        streakCurrent: user.streakCurrent || 0,
+        streakBest: user.streakBest || 0,
+        isNewRecord: false,
+      };
+    }
+
+    if (newStreakCurrent > newStreakBest) {
+      newStreakBest = newStreakCurrent;
+    }
+
+    // Update user
+    await ctx.db.patch(user._id, {
+      streakCurrent: newStreakCurrent,
+      streakBest: newStreakBest,
+      lastActiveDate: today,
+    });
+
+    return {
+      streakCurrent: newStreakCurrent,
+      streakBest: newStreakBest,
+      isNewRecord: newStreakCurrent > newStreakBest,
+    };
+  },
+});
+
+// Award achievement
+export const awardAchievement = mutation({
+  args: {
+    key: v.string(),
+    title: v.string(),
+    description: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userIdentityId = identity.subject;
+    
+    // Get user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_name", (q) => q.eq("name", identity.tokenIdentifier || userIdentityId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Check if achievement already exists
+    const existing = await ctx.db
+      .query("achievements")
+      .withIndex("by_userId_key", (q) => 
+        q.eq("userId", user._id)
+         .eq("key", args.key)
+      )
+      .first();
+
+    if (existing) {
+      return { alreadyEarned: true };
+    }
+
+    // Award achievement
+    await ctx.db.insert("achievements", {
+      userId: user._id,
+      key: args.key,
+      title: args.title,
+      description: args.description,
+      earnedAt: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
+// Create or update daily quest
+export const createDailyQuest = mutation({
+  args: {
+    dateKey: v.string(),
+    key: v.string(),
+    title: v.string(),
+    target: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userIdentityId = identity.subject;
+    
+    // Get user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_name", (q) => q.eq("name", identity.tokenIdentifier || userIdentityId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Check if quest already exists
+    const existing = await ctx.db
+      .query("quests")
+      .withIndex("by_userId_dateKey", (q) => 
+        q.eq("userId", user._id)
+         .eq("dateKey", args.dateKey)
+         .eq("key", args.key)
+      )
+      .first();
+
+    if (existing) {
+      return existing;
+    }
+
+    // Create new quest
+    const questId = await ctx.db.insert("quests", {
+      userId: user._id,
+      dateKey: args.dateKey,
+      key: args.key,
+      title: args.title,
+      target: args.target,
+      progress: 0,
+    });
+
+    return await ctx.db.get(questId);
+  },
+});
+
+// Update quest progress
+export const updateQuestProgress = mutation({
+  args: {
+    questId: v.id("quests"),
+    progress: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const quest = await ctx.db.get(args.questId);
+    if (!quest) {
+      throw new Error("Quest not found");
+    }
+
+    const completed = args.progress >= quest.target;
+    
+    await ctx.db.patch(args.questId, {
+      progress: args.progress,
+      completedAt: completed ? Date.now() : undefined,
+    });
+
+    return { completed };
+  },
+});
+
+// Get user gamification stats
+export const getUserStats = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const userIdentityId = identity.subject;
+    
+    // Get user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_name", (q) => q.eq("name", identity.tokenIdentifier || userIdentityId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Get achievements
+    const achievements = await ctx.db
+      .query("achievements")
+      .withIndex("by_userId_earnedAt", (q) => q.eq("userId", user._id))
+      .order("desc")
+      .take(10);
+
+    // Get today's quests
+    const today = new Date().toISOString().split('T')[0];
+    const quests = await ctx.db
+      .query("quests")
+      .withIndex("by_userId_dateKey", (q) => 
+        q.eq("userId", user._id)
+         .eq("dateKey", today)
+      )
+      .collect();
+
+    return {
+      user,
+      achievements,
+      quests,
+    };
+  },
+});
+
+// Get leaderboard
+export const getLeaderboard = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit || 10;
+
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_xp")
+      .order("desc")
+      .take(limit);
+
+    return users.map(user => ({
+      _id: user._id,
+      name: user.name,
+      xp: user.xp,
+      level: user.level,
+      streakBest: user.streakBest,
+    }));
+  },
+});
+
+// Centralized award logic
+export const onCorrectAnswer = mutation({
+  args: {
+    questionId: v.id("questions"),
+  },
+  handler: async (ctx, args) => {
+    // Award XP for correct answer
+    await awardXP(ctx, { xpAmount: 10, reason: "Correct answer" });
+    
+    // Update streak
+    await updateStreak(ctx, {});
+    
+    // Check for achievements
+    await checkAchievements(ctx, args.questionId);
+  },
+});
+
+export const onSessionComplete = mutation({
+  args: {
+    sessionId: v.id("sessions"),
+    score: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Award XP based on score
+    const xpAmount = Math.floor(args.score / 10); // 1 XP per 10% score
+    await awardXP(ctx, { xpAmount, reason: "Session completed" });
+    
+    // Update streak
+    await updateStreak(ctx, {});
+    
+    // Check for achievements
+    await checkAchievements(ctx, undefined);
+  },
+});
+
+// Check and award achievements based on user activity
+async function checkAchievements(ctx: any, questionId?: any) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return;
+
+  const userIdentityId = identity.subject;
+  
+  // Get user
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_name", (q) => q.eq("name", identity.tokenIdentifier || userIdentityId))
+    .first();
+
+  if (!user) return;
+
+  // Check various achievements
+  const achievements = [];
+
+  // First Steps (answer first question)
+  const answers = await ctx.db
+    .query("answers")
+    .withIndex("by_userId", (q) => q.eq("userId", user._id))
+    .take(1);
+
+  if (answers.length === 1) {
+    achievements.push({
+      key: "first_steps",
+      title: "First Steps",
+      description: "Answer your first question",
+    });
+  }
+
+  // Streak achievements
+  if (user.streakCurrent >= 7) {
+    achievements.push({
+      key: "week_warrior",
+      title: "Week Warrior",
+      description: "Maintain a 7-day streak",
+    });
+  }
+
+  if (user.streakCurrent >= 30) {
+    achievements.push({
+      key: "month_master",
+      title: "Month Master",
+      description: "Maintain a 30-day streak",
+    });
+  }
+
+  // Level achievements
+  if (user.level >= 5) {
+    achievements.push({
+      key: "level_5",
+      title: "Rising Star",
+      description: "Reach level 5",
+    });
+  }
+
+  if (user.level >= 10) {
+    achievements.push({
+      key: "level_10",
+      title: "Expert",
+      description: "Reach level 10",
+    });
+  }
+
+  // Award new achievements
+  for (const achievement of achievements) {
+    const existing = await ctx.db
+      .query("achievements")
+      .withIndex("by_userId_key", (q) => 
+        q.eq("userId", user._id)
+         .eq("key", achievement.key)
+      )
+      .first();
+
+    if (!existing) {
+      await ctx.db.insert("achievements", {
+        userId: user._id,
+        key: achievement.key,
+        title: achievement.title,
+        description: achievement.description,
+        earnedAt: Date.now(),
+      });
+    }
+  }
+}
