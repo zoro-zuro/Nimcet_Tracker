@@ -6,8 +6,8 @@ This is the foundation for migrating the NIMCET Prep Tracker from a single-file 
 
 ### Prerequisites
 - Node.js 18+
-- npm or yarn
-- Convex CLI (`npm install -g convex`)
+- pnpm
+- Convex CLI (`pnpm install -g convex`)
 
 ### Installation
 
@@ -19,7 +19,7 @@ cd nimcet-prep-tracker
 
 2. Install dependencies
 ```bash
-npm install
+pnpm install
 ```
 
 3. Set up environment variables
@@ -30,7 +30,7 @@ cp .env.example .env.local
 ### Running the Development Server
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 The app will be available at `http://localhost:3000`
@@ -71,21 +71,21 @@ The app will be available at `http://localhost:3000`
 
 1. Install Convex CLI globally:
 ```bash
-npm install -g convex
+pnpm install -g convex
 ```
 
 2. Run Convex development server:
 ```bash
-npm run convex:dev
+pnpm run convex:dev
 ```
 
 3. Follow the prompts to connect to your Convex deployment
 
 ### Convex Commands
 
-- `npm run convex:dev` - Start Convex development server
-- `npm run convex:deploy` - Deploy Convex functions
-- `npm run convex:codegen` - Generate TypeScript types
+- `pnpm run convex:dev` - Start Convex development server
+- `pnpm run convex:deploy` - Deploy Convex functions
+- `pnpm run convex:codegen` - Generate TypeScript types
 
 ## 📊 Database Schema
 
