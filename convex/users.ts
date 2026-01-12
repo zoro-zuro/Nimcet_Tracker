@@ -1,7 +1,7 @@
-import { query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 
 // Get or create default user for the current session
-export const getOrCreateDefaultUser = query({
+export const getOrCreateDefaultUser = mutation({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();

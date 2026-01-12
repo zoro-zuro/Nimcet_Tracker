@@ -99,7 +99,7 @@ export const seedSampleQuestions = mutation({
       },
       {
         userId: user._id,
-        section: "math",
+        section: "math" as const,
         topic: "Algebra",
         text: "Solve for x: 2x + 5 = 15",
         options: ["x = 5", "x = 10", "x = 3", "x = 7"],
@@ -110,7 +110,7 @@ export const seedSampleQuestions = mutation({
       },
       {
         userId: user._id,
-        section: "reasoning",
+        section: "reasoning" as const,
         topic: "Logical Reasoning",
         text: "If all roses are flowers and some flowers are red, then:",
         options: [
@@ -126,7 +126,7 @@ export const seedSampleQuestions = mutation({
       },
       {
         userId: user._id,
-        section: "computer",
+        section: "computer" as const,
         topic: "Data Structures",
         text: "What is the time complexity of binary search?",
         options: ["O(n)", "O(n^2)", "O(log n)", "O(1)"],
@@ -137,7 +137,7 @@ export const seedSampleQuestions = mutation({
       },
       {
         userId: user._id,
-        section: "computer",
+        section: "computer" as const,
         topic: "Programming",
         text: "Which data structure uses LIFO?",
         options: ["Queue", "Stack", "Array", "Linked List"],
@@ -148,7 +148,7 @@ export const seedSampleQuestions = mutation({
       },
       {
         userId: user._id,
-        section: "english",
+        section: "english" as const,
         topic: "Grammar",
         text: "Choose the correct sentence:",
         options: [

@@ -1,23 +1,14 @@
 "use client";
 
-import { ConvexReactClient } from "convex/react";
-import { ConvexProvider } from "convex/react";
+import { ConvexProvider, ConvexReactClient } from "convex/react";
+import type { ReactNode } from "react";
 
-// Create Convex client only if URL is available
-const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-const convex = convexUrl ? new ConvexReactClient(convexUrl) : null;
+const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
-export function ConvexClientProvider({ children }: { children: React.ReactNode }) {
-  // For Task 1/4, we don't need actual Convex connection for the health check
-  // This will be properly configured when Convex deployment is set up
-  if (!convex) {
-    // Return children directly if no Convex URL is configured
-    return <>{children}</>;
-  }
-  
-  return (
-    <ConvexProvider client={convex}>
-      {children}
-    </ConvexProvider>
-  );
+export default function ConvexClientProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return <ConvexProvider client={convex}>{children}</ConvexProvider>;
 }

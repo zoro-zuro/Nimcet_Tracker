@@ -8,8 +8,7 @@ export default defineSchema({
     targetScore: v.number(),
     examDate: v.string(), // ISO date
     createdAt: v.number(), // milliseconds
-  })
-    .index("by_name", ["name"]),
+  }).index("by_name", ["name"]),
 
   // Papers table - stores question papers
   papers: defineTable({
@@ -19,7 +18,11 @@ export default defineSchema({
     label: v.string(),
     sections: v.array(v.string()), // e.g. ["math","reasoning","computer","english"]
     storageKey: v.optional(v.string()),
-    status: v.union(v.literal("pending"), v.literal("parsed"), v.literal("ready")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("parsed"),
+      v.literal("ready")
+    ),
     createdAt: v.number(),
   }),
 
@@ -29,7 +32,7 @@ export default defineSchema({
     paperId: v.optional(v.id("papers")), // optional, allow AI/system questions
     section: v.union(
       v.literal("math"),
-      v.literal("reasoning"), 
+      v.literal("reasoning"),
       v.literal("computer"),
       v.literal("english")
     ),
@@ -37,13 +40,21 @@ export default defineSchema({
     subTopic: v.optional(v.string()),
     text: v.string(),
     options: v.array(v.string()), // length 4
-    correctOption: v.union(v.literal("A"), v.literal("B"), v.literal("C"), v.literal("D")),
-    difficulty: v.union(v.literal("easy"), v.literal("medium"), v.literal("hard")),
+    correctOption: v.union(
+      v.literal("A"),
+      v.literal("B"),
+      v.literal("C"),
+      v.literal("D")
+    ),
+    difficulty: v.union(
+      v.literal("easy"),
+      v.literal("medium"),
+      v.literal("hard")
+    ),
     tags: v.array(v.string()),
     sourceIndex: v.optional(v.number()),
     createdAt: v.number(),
-  })
-    .index("by_userId", ["userId"]),
+  }).index("by_userId", ["userId"]),
 
   // Sessions table - stores practice/mock test sessions
   sessions: defineTable({
@@ -66,7 +77,9 @@ export default defineSchema({
     userId: v.id("users"),
     sessionId: v.id("sessions"),
     questionId: v.id("questions"),
-    chosenOption: v.optional(v.union(v.literal("A"), v.literal("B"), v.literal("C"), v.literal("D"))),
+    chosenOption: v.optional(
+      v.union(v.literal("A"), v.literal("B"), v.literal("C"), v.literal("D"))
+    ),
     isCorrect: v.optional(v.boolean()),
     timeTakenSeconds: v.optional(v.number()),
     reviewLater: v.boolean(),
@@ -87,13 +100,16 @@ export default defineSchema({
       v.literal("Time Pressure")
     ),
     note: v.optional(v.string()),
-    status: v.union(v.literal("new"), v.literal("reviewing"), v.literal("mastered")),
+    status: v.union(
+      v.literal("new"),
+      v.literal("reviewing"),
+      v.literal("mastered")
+    ),
     reviewedCount: v.number(),
     lastReviewedAt: v.optional(v.number()),
     aiExplanation: v.optional(v.string()),
     createdAt: v.number(),
-  })
-    .index("by_userId", ["userId"]),
+  }).index("by_userId", ["userId"]),
 
   // Topic statistics table
   topicStats: defineTable({
@@ -102,7 +118,9 @@ export default defineSchema({
     attempted: v.number(),
     correct: v.number(),
     lastPracticedAt: v.optional(v.number()),
-  }),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_userId_topic", ["userId", "topic"]),
 
   // Daily statistics table
   dailyStats: defineTable({

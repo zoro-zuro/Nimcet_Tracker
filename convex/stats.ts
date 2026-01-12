@@ -42,7 +42,7 @@ export const getDashboardSummary = query({
       .collect();
 
     // Filter topic stats for this user manually (since no index)
-    const userTopicStats = topicStats.filter(t => t.userId.equals(user._id));
+    const userTopicStats = topicStats.filter(t => t.userId === user._id);
 
     // Calculate worst topics (lowest accuracy where attempted > 0)
     const worstTopics = userTopicStats

@@ -39,9 +39,11 @@ export default function SolvePage() {
         timeLimitSeconds: timerEnabled ? questionCount * timePerQuestion : undefined,
       });
       
-      setSessionId(session._id);
-      setQuestionIds(session.questionIds);
-      setStep("solving");
+      if (session) {
+        setSessionId(session._id);
+        setQuestionIds(session.questionIds);
+        setStep("solving");
+      }
     } catch (error) {
       console.error("Error creating session:", error);
       alert("Failed to start session. Please try again.");
